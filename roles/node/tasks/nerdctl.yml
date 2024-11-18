@@ -1,0 +1,31 @@
+---
+  - name: Install nerdctl
+    command: "{{ item }}"
+    with_items:
+      - sudo wget -q https://github.com/containerd/nerdctl/releases/download/v0.20.0/nerdctl-0.20.0-linux-amd64.tar.gz -O /home/vagrant/nerdctl.tar.gz
+      - mkdir -p /home/vagrant/.local/bin
+    become: True
+    become_user: vagrant
+
+  - name: Uncompress nerdctl
+    unarchive:
+      src: /home/vagrant/nerdctl.tar.gz
+      dest: /home/vagrant/.local/bin/
+      remote_src: yes
+    become: True
+    become_user: vagrant
+
+  - name: Clean and setup nerdctl
+    command: "{{ item }}"
+    with_items:
+      - rm -rf /home/vagrant/nerdctl.tar.gz
+      - echo 'export PATH="${PATH}:/home/vagrant/.local/bin"' >> /home/vagrant/.bashrc
+    become: True
+    become_user: vagrant
+
+  - name: Setup nerdctl
+    command: "{{ item }}"
+    with_items:
+      - sudo chown root /home/vagrant/.local/bin/nerdctl
+      - sudo chmod +s /home/vagrant/.local/bin/nerdctl
+    become: True 

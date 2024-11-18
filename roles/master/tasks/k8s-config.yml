@@ -1,0 +1,110 @@
+---
+  - name: Configure node ip
+    lineinfile:
+      path: /etc/default/kubelet
+      line: KUBELET_EXTRA_ARGS=--node-ip={{ node_ip }} --container-runtime-endpoint=/run/containerd/containerd.sock
+      create: yes
+    become: True 
+  
+  - name: Load containerd kernel modules
+    modprobe:
+      name: "{{ item.name }}"
+      state: present
+    loop: "{{ k8s_common_modprobe }}"
+    become: True 
+
+  - name: Configure kubernetes-cri sys params
+    sysctl:
+      name: "{{ item.name }}"
+      value: "{{ item.value }}"
+      state: present
+      reload: yes
+    loop: "{{ k8s_common_sysctl }}"
+    become: True 
+
+  - name: restart containerd
+    service: 
+      name: containerd 
+      state: restarted 
+      daemon_reload: yes
+    become: True
+
+  - name: Delete configuration for containerd.conf (see https://github.com/containerd/containerd/issues/4581)
+    file:
+      state: absent
+      path:  /etc/containerd/config.toml
+    become: True
+  
+  - name: Reset kubeadm (if retry)
+    command: "{{ item }}"
+    with_items:
+      - kubeadm reset --force
+      - rm -rf /home/vagrant/.kube
+    become: True 
+
+  - name: Configure containerd
+    command: "{{ item }}"
+    with_items:
+      - rm -rf /etc/containerd/config.toml
+    become: True
+
+  - name: Restart containerd
+    service:
+      name: containerd
+      daemon_reload: yes
+      state: restarted
+    become: True 
+
+  - name: Initialize the Kubernetes cluster using kubeadm
+    command: kubeadm init --apiserver-advertise-address="192.168.61.10" --apiserver-cert-extra-sans="192.168.60.10"  --node-name k8s-master --pod-network-cidr=192.168.0.0/16 --cri-socket=/run/containerd/containerd.sock
+    become: True
+
+  
+
+  - name: Setup kubeconfig for vagrant user
+    command: "{{ item }}"
+    with_items:
+      - mkdir -p /home/vagrant/.kube
+      - cp -i /etc/kubernetes/admin.conf /home/vagrant/.kube/config
+      - chown vagrant:vagrant /home/vagrant/.kube/config
+    become: True 
+
+  - name: Pause to get Kubectl started
+    pause:
+      seconds: 120
+
+  - name: Copy calico.yaml
+    copy:
+      src: home/calico.yaml
+      dest: /home/vagrant/calico.yaml
+      owner: vagrant
+      group: vagrant
+      mode: '0777'
+
+  - name: Install calico pod network
+    command: kubectl apply -f /home/vagrant/calico.yaml
+
+#  - name: Install Flannel
+#    become: false
+#    command: kubectl apply -f https://lwgitea.consrc.ca:3000/hkerma/quick-kubernetes/raw/branch/master/flannel.yaml   
+
+  - name: Generate join command
+    command: kubeadm token create --print-join-command
+    register: join_command
+    become: True 
+
+  - name: Copy join command to local file
+    local_action: copy content="{{ join_command.stdout_lines[0] }}" dest="./join-command"
+  
+  - name: Install bash completion for Kubernetes
+    apt:
+      name: bash-completion
+      state: present
+    become: True 
+  
+  - name: Autocomplete Kubernetes
+    shell: "{{ item }}"
+    with_items:
+      - echo 'source /usr/share/bash-completion/bash_completion' >> /home/vagrant/.bashrc
+      - echo 'source <(kubectl completion bash)' >> /home/vagrant/.bashrc
+    become: True 

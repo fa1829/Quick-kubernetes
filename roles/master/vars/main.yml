@@ -1,0 +1,12 @@
+---
+ansible_python_interpreter: /usr/bin/python3
+k8s_common_modprobe:
+  - name: overlay
+  - name: br_netfilter
+k8s_common_sysctl:
+  - name: net.bridge.bridge-nf-call-iptables
+    value: 1
+  - name: net.ipv4.ip_forward
+    value: 1
+  - name: net.bridge.bridge-nf-call-ip6tables
+    value: 1

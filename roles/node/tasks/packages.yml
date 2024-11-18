@@ -1,0 +1,105 @@
+---
+  - name: Install various base packages
+    apt:
+      name: "{{ packages }}"
+      state: present
+      update_cache: yes
+    vars:
+      packages:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg-agent
+      - software-properties-common
+      - build-essential
+      - "linux-headers-{{ ansible_kernel }}"
+      - snapd
+      - git
+    become: True
+
+  - name: Add an apt signing key for Docker
+    apt_key:
+      url: https://download.docker.com/linux/ubuntu/gpg
+      state: present
+    become: True
+
+  - name: Add apt repository for stable version
+    apt_repository:
+      repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable
+      state: present
+    become: True
+
+  - name: Install Containerd and its dependencies
+    apt: 
+      name: "{{ packages }}"
+      state: present
+      update_cache: yes
+    vars:
+      packages:
+      - docker-ce 
+      - docker-ce-cli
+      - containerd.io
+    become: True
+
+  - name: Download containerd1.6.12
+    get_url:
+      url: https://github.com/containerd/containerd/releases/download/v1.6.12/containerd-1.6.12-linux-amd64.tar.gz
+      dest: /home/vagrant/
+    become: True
+
+  - name: Upgrade to 1.6.12
+    get_url:
+      url: https://github.com/containerd/containerd/releases/download/v1.6.12/containerd-1.6.12-linux-amd64.tar.gz
+      dest: /home/vagrant/
+    become: True
+
+  - name: Untar and install
+    command: "{{ item }}"
+    with_items:
+      - tar xvf /home/vagrant/containerd-1.6.12-linux-amd64.tar.gz
+
+  - name: Stop containerd
+    service: 
+      name: containerd 
+      state: stopped 
+      daemon_reload: yes
+    become: True
+
+  - name: Copy binaries
+    command: "{{ item }}"
+    with_items:
+      - /bin/bash -c 'cp /home/vagrant/bin/* /usr/bin'
+    become: True
+
+  - name: Start containerd
+    service: 
+      name: containerd 
+      state: started
+      daemon_reload: yes
+    become: True
+
+  - name: Add an apt signing key for Kubernetes
+    apt_key:
+#      url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+      url: https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key
+      state: present
+    become: True
+
+  - name: Adding apt repository for Kubernetes
+    apt_repository:
+      repo: deb https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /
+      state: present
+      filename: kubernetes.list
+    become: True
+
+  - name: Install Kubernetes binaries
+    apt: 
+      name: "{{ packages }}"
+      state: present
+      update_cache: yes
+    vars:
+      packages:
+        - kubelet=1.28.7-1.1
+        - kubeadm=1.28.7-1.1
+        - kubectl=1.28.7-1.1
+    become: True

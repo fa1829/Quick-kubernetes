@@ -1,0 +1,75 @@
+---
+  - name: Configure node ip
+    lineinfile:
+      path: /etc/default/kubelet
+      line: KUBELET_EXTRA_ARGS=--node-ip={{ node_ip }} --container-runtime-endpoint=/run/containerd/containerd.sock
+      create: yes
+    become: True
+  
+  - name: Load containerd kernel modules
+    modprobe:
+      name: "{{ item.name }}"
+      state: present
+    loop: "{{ k8s_common_modprobe }}"
+    become: True
+
+  - name: Configure kubernetes-cri sys params
+    sysctl:
+      name: "{{ item.name }}"
+      value: "{{ item.value }}"
+      state: present
+      reload: yes
+    loop: "{{ k8s_common_sysctl }}"
+    become: True
+
+  - name: Delete configuration for containerd.conf (see https://github.com/containerd/containerd/issues/4581)
+    file:
+      state: absent
+      path:  /etc/containerd/config.toml
+    become: True
+
+  - name: Restart kubelet
+    service:
+      name: kubelet
+      daemon_reload: yes
+      state: restarted
+    become: True
+
+  - name: Reset kubeadm (if retry)
+    command: "{{ item }}"
+    with_items:
+      - kubeadm reset --force
+      - rm -rf /home/vagrant/.kube
+    become: True
+  
+  - name: Restart containerd
+    service:
+      name: containerd
+      daemon_reload: yes
+      state: restarted
+    become: True
+
+  - name: Restart kubelet
+    service:
+      name: kubelet
+      daemon_reload: yes
+      state: restarted
+    become: True 
+
+
+  - name: Copy the join command to server location
+    copy: src=join-command dest=/tmp/join-command.sh mode=0777
+    become: True
+
+  - name: Pausing
+    pause:
+      seconds: 20
+
+  - name: Join the node to cluster
+    command: sh /tmp/join-command.sh
+    become: True
+
+  - name: Autocomplete Kubernetes
+    shell: echo 'source <(kubectl completion bash)' >> /home/vagrant/.bashrc
+    become: True
+ 

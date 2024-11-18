@@ -1,0 +1,16 @@
+---
+  - name: Fetch gtp5g module from GitHub
+    git:
+      repo: https://github.com/free5gc/gtp5g.git
+      dest: /home/vagrant/gtp5g
+    become: True 
+
+  - name: Make and install gtp5g module
+    shell: "{{ item }}"
+    with_items:
+      - make clean
+      - make
+      - make install
+    args:
+     chdir: /home/vagrant/gtp5g
+    become: True 
